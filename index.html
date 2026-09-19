@@ -128,7 +128,7 @@
         <!-- מפתח API -->
         <div class="form-group">
             <label>מפתח Gemini API (חינמי):</label>
-            <input type="password" id="api-key" placeholder="הדבק את מפתח ה-API מ-Google AI Studio" required>
+            <input type="password" id="api-key" placeholder="הדבק את מפתח ה-API מ-Google AI Studio" required autocomplete="off">
         </div>
 
         <!-- העלאת תמונה ראשית -->
@@ -198,7 +198,8 @@
     document.getElementById('caricature-form').addEventListener('submit', async function(e) {
         e.preventDefault();
 
-        const apiKey = document.getElementById('api-key').value.trim();
+        // ניקוי תווים מיותרים ורווחים ממפתח ה-API
+        const apiKey = document.getElementById('api-key').value.replace(/[\s\t\n\r]/g, '');
         const generateBtn = document.getElementById('generate-btn');
         const loader = document.getElementById('loader');
         const resultContainer = document.getElementById('result-container');
@@ -217,20 +218,13 @@
         resultContainer.style.display = 'none';
 
         try {
-            // הפיכת התמונה הראשית ל-Base64
             const mainImageBase64 = await fileToBase64(mainImageFile);
-            
-            // שימוש בשירות Image-to-Image ייעודי המקבל רפרנס
-            let promptText = `A stylized ${style} image set in ${scene}. Maintain the key facial structure and likeness of the provided person.`;
-            if (signText) {
-                promptText += ` Holding a cardboard sign with text: "${signText}".`;
-            }
-
-            // העלאת תמונה זמנית לעיבוד ויצירה בעזרת מודל רפרנס
             const seed = Math.floor(Math.random() * 1000000);
             
-            // שליחה ל-Gemini API לצורך ניתוח תווי הפנים והפקת פרומפט ויזואלי מפורט
-            const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+            // פנייה מעודכנת ל-Gemini API
+            const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
+
+            const geminiResponse = await fetch(geminiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -243,7 +237,7 @@
                                 }
                             },
                             {
-                                text: `Analyze the person's face in this photo (hair, age, gender, facial structure, features). Then create a detailed English image generation prompt to generate a new photo of THIS EXACT PERSON in style: "${style}" and scene: "${scene}". ${signText ? 'Holding a sign saying "' + signText + '"' : ''}. Return ONLY the prompt text in English without any explanations.`
+                                text: `Analyze the face in this image. Create a highly detailed image generation prompt in English to recreate a person with these exact facial features in style: "${style}" and scene: "${scene}". ${signText ? 'Holding a sign with text: "' + signText + '"' : ''}. Output ONLY the concise prompt.`
                             }
                         ]
                     }]
@@ -252,13 +246,17 @@
 
             const geminiData = await geminiResponse.json();
 
-            if (!geminiData.candidates || !geminiData.candidates[0].content.parts[0].text) {
-                throw new Error('לא התקבל מענה תקין מ-Gemini API. בדוק את המפתח.');
+            if (geminiData.error) {
+                throw new Error(`שגיאת גוגל (${geminiData.error.code}): ${geminiData.error.message}`);
+            }
+
+            if (!geminiData.candidates || !geminiData.candidates[0]?.content?.parts[0]?.text) {
+                throw new Error('התקבלה תשובה ריקה מהמודל. ודא כי המפתח תקין.');
             }
 
             const detailedPrompt = geminiData.candidates[0].content.parts[0].text.trim();
 
-            // יצירת התמונה הסופית המותאמת אישית מתוך התיאור המדויק של הפנים
+            // יצירת התמונה מהפרומפט שנבנה מתווי הפנים
             const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(detailedPrompt)}?width=1024&height=1024&seed=${seed}&nologo=true&model=flux`;
 
             const img = new Image();
@@ -278,7 +276,7 @@
 
         } catch (err) {
             console.error(err);
-            alert('שגיאה: ' + (err.message || 'ודא שמפתח ה-API תקין ונסה שוב.'));
+            alert(err.message || 'שגיאה בתקשורת מול גוגל. בדוק את מפתח ה-API שהכנסת.');
             loader.style.display = 'none';
             generateBtn.disabled = false;
         }
