@@ -72,16 +72,6 @@
             background-color: #fff;
         }
 
-        .checkbox-row {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .checkbox-row input {
-            width: auto;
-        }
-
         .btn {
             width: 100%;
             padding: 14px;
@@ -110,7 +100,7 @@
             display: none;
         }
 
-        #result-canvas {
+        #result-image {
             max-width: 100%;
             border-radius: 12px;
             box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
@@ -152,36 +142,25 @@
         <div class="form-group">
             <label>מפתח Gemini API (חינמי):</label>
             <input type="password" id="api-key" placeholder="הדבק את מפתח ה-API מ-Google AI Studio" required autocomplete="off">
-            <p class="hint">המפתח נשלח ישירות מהדפדפן שלך לגוגל בלבד (דרך header, לא בכתובת ה-URL) ואינו נשמר בשום מקום.</p>
+            <p class="hint">המפתח נשלח ישירות מול גוגל בלבד ב-Header מאובטח.</p>
         </div>
 
         <!-- העלאת תמונה ראשית -->
         <div class="form-group">
             <label>1. תמונה ראשית (הדמות המרכזית):</label>
             <input type="file" id="main-image" accept="image/*" required>
-            <p class="hint">מומלץ תמונת פנים ברורה, מבט קדימה, תאורה טובה - כך תוצאת מיזוג הפנים תהיה טובה יותר.</p>
         </div>
 
         <!-- העלאת תמונות נוספות -->
         <div class="form-group">
             <label>2. תמונות נוספות של אנשים אחרים (אופציונלי):</label>
             <input type="file" id="extra-images" accept="image/*" multiple>
-            <p class="hint">כל קובץ כאן ייחשב כאדם נוסף ושונה בתמונה (לא זווית נוספת של אותו אדם).</p>
-        </div>
-
-        <!-- מיזוג פנים -->
-        <div class="form-group">
-            <label>3. מיזוג פנים אמיתיות:</label>
-            <div class="checkbox-row">
-                <input type="checkbox" id="face-fusion" checked>
-                <label for="face-fusion" style="margin:0; font-weight:normal;">שלב את הפנים האמיתיות שלך (מהתמונה הראשית) על גבי הדמות שנוצרה</label>
-            </div>
-            <p class="hint">מדובר במיקום קבוע ולא בזיהוי פנים אמיתי - עובד הכי טוב כשהדמות שנוצרת פונה קדימה ובמרכז התמונה.</p>
+            <p class="hint">כל תמונה נוספת תתווסף כדמות נוספת בסצנה.</p>
         </div>
 
         <!-- בחירת סגנון -->
         <div class="form-group">
-            <label>4. בחר סגנון ויזואלי:</label>
+            <label>3. בחר סגנון ויזואלי:</label>
             <select id="style-select">
                 <option value="exaggerated funny caricature art, big head, expressive cartoon features">קריקטורה מצחיקה (ראש גדול, קווים מובלטים)</option>
                 <option value="realistic meme photograph, detailed portrait, authentic outdoor lighting">תמונה מציאותית / מם (כמו צילום אמיתי ברחוב)</option>
@@ -192,7 +171,7 @@
 
         <!-- בחירת סצנה/רקע -->
         <div class="form-group">
-            <label>5. איפה הדמויות נמצאות?</label>
+            <label>4. איפה הדמויות נמצאות?</label>
             <select id="scene-select">
                 <option value="sitting on a city sidewalk street background">יושבים על מדרכה ברחוב העיר</option>
                 <option value="celebrating at a festive birthday party with colorful balloons">במסיבת יום הולדת שמחה עם בלונים</option>
@@ -204,7 +183,7 @@
 
         <!-- טקסט לשלט -->
         <div class="form-group">
-            <label>6. טקסט לשלט (אופציונלי):</label>
+            <label>5. טקסט לשלט (אופציונלי):</label>
             <input type="text" id="sign-text" placeholder="למשל: Will build AI agents for coffee או מזל טוב!">
         </div>
 
@@ -216,9 +195,9 @@
 
     <div id="result-container">
         <h2>התמונה שלך מוכנה!</h2>
-        <canvas id="result-canvas"></canvas>
+        <img id="result-image" src="" alt="תמונה סופית">
         <br><br>
-        <a id="download-btn" class="btn" style="display:inline-block; text-decoration:none; width:auto; padding:10px 20px;" download="my-image.jpg">הורד תמונה</a>
+        <a id="download-btn" class="btn" style="display:inline-block; text-decoration:none; width:auto; padding:10px 20px;" download="caricature.jpg" target="_blank">הורד תמונה</a>
     </div>
 </div>
 
@@ -232,26 +211,6 @@
         });
     }
 
-    function readFileAsDataURL(file) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result);
-            reader.onerror = reject;
-            reader.readAsDataURL(file);
-        });
-    }
-
-    function loadImage(src, useCors) {
-        return new Promise((resolve, reject) => {
-            const img = new Image();
-            if (useCors) img.crossOrigin = 'anonymous';
-            img.onload = () => resolve(img);
-            img.onerror = (e) => reject(e);
-            img.src = src;
-        });
-    }
-
-    // קריאה ל-Gemini עם המפתח בכותרת (header) ולא בכתובת ה-URL
     async function callGeminiApi(apiKey, modelName, apiVersion, parts) {
         const geminiUrl = `https://generativelanguage.googleapis.com/${apiVersion}/models/${modelName}:generateContent`;
 
@@ -280,13 +239,11 @@
         const generateBtn = document.getElementById('generate-btn');
         const loader = document.getElementById('loader');
         const resultContainer = document.getElementById('result-container');
-        const canvas = document.getElementById('result-canvas');
-        const ctx = canvas.getContext('2d');
+        const resultImage = document.getElementById('result-image');
         const downloadBtn = document.getElementById('download-btn');
 
         const mainImageFile = document.getElementById('main-image').files[0];
         const extraImageFiles = Array.from(document.getElementById('extra-images').files);
-        const doFaceFusion = document.getElementById('face-fusion').checked;
 
         const style = document.getElementById('style-select').value;
         const scene = document.getElementById('scene-select').value;
@@ -295,14 +252,14 @@
         generateBtn.disabled = true;
         loader.style.display = 'block';
         resultContainer.style.display = 'none';
-        setStatus('שולח תמונות לניתוח...');
+        setStatus('טוען תמונות ומכין ניתוח...');
 
         try {
             const parts = [];
 
-            // תמונה ראשית - מסומנת בבירור כדמות המרכזית
+            // העלאת תמונה ראשית
             const mainBase64 = await fileToBase64(mainImageFile);
-            parts.push({ text: 'Main character (Person 1), keep this as the central figure:' });
+            parts.push({ text: 'Main central character photo (Person 1):' });
             parts.push({
                 inline_data: {
                     mime_type: mainImageFile.type,
@@ -310,11 +267,11 @@
                 }
             });
 
-            // כל תמונה נוספת מסומנת בנפרד כאדם שונה, כדי שהמודל לא יתבלבל בין זוויות שונות של אותו אדם
+            // העלאת תמונות נוספות
             for (let i = 0; i < extraImageFiles.length; i++) {
                 const file = extraImageFiles[i];
                 const extraBase64 = await fileToBase64(file);
-                parts.push({ text: `Additional, separate person (Person ${i + 2}):` });
+                parts.push({ text: `Separate secondary character photo (Person ${i + 2}):` });
                 parts.push({
                     inline_data: {
                         mime_type: file.type,
@@ -323,22 +280,21 @@
                 });
             }
 
-            // הנחיית ניתוח מפורטת - מבקשת גם פוזיציה קדמית ומרכזית, כדי שמיזוג הפנים בהמשך יתאים טוב יותר
-            const promptInstruction = `Analyze each numbered person in the provided images separately (facial features, hair, age, distinct look, clothing). ` +
-                `Create a single detailed image generation prompt in English describing ALL these exact people rendered together in style: "${style}", placed in scene: "${scene}". ` +
-                `The main character (Person 1) must be facing forward, centered in the frame, with head and face clearly and fully visible and unobstructed. ` +
-                (signText ? `Include a clear cardboard sign held by the main character with text: "${signText}". ` : '') +
-                `Output ONLY the raw prompt string in English, nothing else.`;
+            // הנחיית ניתוח ויזואלי מפורטת ל-Gemini
+            const promptInstruction = `Analyze all provided person photos carefully. Extract key distinctive facial traits (hair style/color, age, jawline, eye shape, nose shape, smile, facial hair if any). ` +
+                `Construct a highly detailed English image generation prompt to generate a new cohesive single artwork containing all these persons rendered in style: "${style}", setting/scene: "${scene}". ` +
+                `Ensure the main person (Person 1) is clearly recognizable based on their facial features. ` +
+                (signText ? `Include a clear cardboard sign held by Person 1 displaying the text: "${signText}". ` : '') +
+                `Output ONLY the raw detailed English prompt string, with no markdown or extra intro text.`;
 
             parts.push({ text: promptInstruction });
 
-            // פנייה ל-Gemini API עם fallback
-            setStatus('מנתח את התמונות מול Gemini...');
+            setStatus('מנתח תווי פנים מול Google Gemini...');
             let geminiData = await callGeminiApi(apiKey, 'gemini-3.6-flash', 'v1', parts);
 
             if (geminiData.error) {
                 console.warn('gemini-3.6-flash failed, trying gemini-1.5-flash...', geminiData.error);
-                setStatus('מנסה מודל חלופי...');
+                setStatus('מנסה מודל גיבוי...');
                 geminiData = await callGeminiApi(apiKey, 'gemini-1.5-flash', 'v1', parts);
             }
 
@@ -352,43 +308,27 @@
                 throw new Error('התקבלה תשובה ריקה מגוגל.');
             }
 
-            // יצירת התמונה עם Pollinations/Flux
-            setStatus('מייצר את התמונה...');
+            // הפקת התמונה המעובדת והמאוחדת משרתי ה-AI
+            setStatus('מפיק את התמונה המעובדת...');
             const seed = Math.floor(Math.random() * 1000000);
             const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(detailedPrompt)}?width=1024&height=1024&seed=${seed}&nologo=true&model=flux`;
 
-            const generatedImg = await loadImage(imageUrl, true);
-
-            canvas.width = 1024;
-            canvas.height = 1024;
-            ctx.drawImage(generatedImg, 0, 0, canvas.width, canvas.height);
-
-            // מיזוג הפנים האמיתיות של המשתמש על גבי הדמות שנוצרה
-            if (doFaceFusion) {
-                setStatus('משלב את הפנים האמיתיות שלך...');
-                const userImageBase64 = await readFileAsDataURL(mainImageFile);
-                const userImg = await loadImage(userImageBase64, false);
-
-                const headSize = 340;
-                const headX = (canvas.width - headSize) / 2;
-                const headY = 160;
-
-                ctx.save();
-                ctx.beginPath();
-                ctx.ellipse(headX + headSize / 2, headY + headSize / 2, headSize / 2, headSize / 1.7, 0, 0, 2 * Math.PI);
-                ctx.closePath();
-                ctx.clip();
-                ctx.drawImage(userImg, headX, headY, headSize, headSize);
-                ctx.restore();
-            }
-
-            // כתובת הורדה אמיתית - מבוססת על תוכן הקנבס (data URL), עובדת גם עם משאבים חיצוניים
-            downloadBtn.href = canvas.toDataURL('image/jpeg', 0.92);
-
-            setStatus('');
-            loader.style.display = 'none';
-            resultContainer.style.display = 'block';
-            generateBtn.disabled = false;
+            const img = new Image();
+            img.onload = function() {
+                resultImage.src = imageUrl;
+                downloadBtn.href = imageUrl;
+                setStatus('');
+                loader.style.display = 'none';
+                resultContainer.style.display = 'block';
+                generateBtn.disabled = false;
+            };
+            img.onerror = function() {
+                alert('אירעה שגיאה בטעינת התמונה, נסה שוב.');
+                setStatus('');
+                loader.style.display = 'none';
+                generateBtn.disabled = false;
+            };
+            img.src = imageUrl;
 
         } catch (err) {
             console.error(err);
