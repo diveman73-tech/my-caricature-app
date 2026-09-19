@@ -135,27 +135,28 @@
 
 <div class="container">
     <h1>יוצר הקריקטורות והתמונות</h1>
-    <p class="subtitle">בחר תמונות וענה על השאלות כדי ליצור תמונה ייחודית ב-AI</p>
+    <p class="subtitle">בחר תמונות וענה על השאלות כדי ליצור תמונה ייחודית ב-AI, עם הפנים האמיתיות שלך משולבות בתוצאה</p>
 
     <form id="caricature-form">
         <!-- מפתח API -->
         <div class="form-group">
             <label>מפתח Gemini API (חינמי):</label>
             <input type="password" id="api-key" placeholder="הדבק את מפתח ה-API מ-Google AI Studio" required autocomplete="off">
-            <p class="hint">המפתח נשלח ישירות מול גוגל בלבד ב-Header מאובטח.</p>
+            <p class="hint">המפתח נשלח ישירות מהדפדפן שלך לגוגל בלבד (דרך header, לא בכתובת ה-URL) ואינו נשמר בשום מקום.</p>
         </div>
 
         <!-- העלאת תמונה ראשית -->
         <div class="form-group">
             <label>1. תמונה ראשית (הדמות המרכזית):</label>
             <input type="file" id="main-image" accept="image/*" required>
+            <p class="hint">מומלץ תמונת פנים ברורה, מבט קדימה, תאורה טובה.</p>
         </div>
 
         <!-- העלאת תמונות נוספות -->
         <div class="form-group">
             <label>2. תמונות נוספות של אנשים אחרים (אופציונלי):</label>
             <input type="file" id="extra-images" accept="image/*" multiple>
-            <p class="hint">כל תמונה נוספת תתווסף כדמות נוספת בסצנה.</p>
+            <p class="hint">כל קובץ כאן ייחשב כאדם נוסף ושונה בתמונה (לא זווית נוספת של אותו אדם).</p>
         </div>
 
         <!-- בחירת סגנון -->
@@ -195,9 +196,9 @@
 
     <div id="result-container">
         <h2>התמונה שלך מוכנה!</h2>
-        <img id="result-image" src="" alt="תוצאה סופית">
+        <img id="result-image" src="" alt="תוצאה">
         <br><br>
-        <a id="download-btn" class="btn" style="display:inline-block; text-decoration:none; width:auto; padding:10px 20px;" download="caricature.jpg" target="_blank">הורד תמונה</a>
+        <a id="download-btn" class="btn" style="display:inline-block; text-decoration:none; width:auto; padding:10px 20px;" download="my-image.png">הורד תמונה</a>
     </div>
 </div>
 
@@ -211,6 +212,7 @@
         });
     }
 
+    // קריאה ל-Gemini עם המפתח בכותרת (header) ולא בכתובת ה-URL
     async function callGeminiApi(apiKey, modelName, parts) {
         const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`;
 
@@ -221,16 +223,40 @@
                 'x-goog-api-key': apiKey
             },
             body: JSON.stringify({
-                contents: [{ parts: parts }]
+                contents: [{ parts: parts }],
+                generationConfig: {
+                    responseModalities: ["TEXT", "IMAGE"]
+                }
             })
         });
 
         return await response.json();
     }
 
+    function extractImagePart(geminiData) {
+        const parts = geminiData?.candidates?.[0]?.content?.parts || [];
+        for (const part of parts) {
+            if (part.inline_data?.data) {
+                return { mimeType: part.inline_data.mime_type || 'image/png', data: part.inline_data.data };
+            }
+            if (part.inlineData?.data) {
+                return { mimeType: part.inlineData.mimeType || 'image/png', data: part.inlineData.data };
+            }
+        }
+        return null;
+    }
+
     function setStatus(text) {
         document.getElementById('status-line').textContent = text;
     }
+
+    // מודלים מוכרים ליצירת/עריכת תמונות של Gemini ("Nano Banana"), מהחדש לישן
+    const IMAGE_MODELS = [
+        'gemini-3.1-flash-image',
+        'gemini-3.1-flash-image-preview',
+        'gemini-2.5-flash-image',
+        'gemini-2.5-flash-image-preview'
+    ];
 
     document.getElementById('caricature-form').addEventListener('submit', async function(e) {
         e.preventDefault();
@@ -252,14 +278,14 @@
         generateBtn.disabled = true;
         loader.style.display = 'block';
         resultContainer.style.display = 'none';
-        setStatus('טוען תמונות ומכין ניתוח...');
+        setStatus('מכין את התמונות...');
 
         try {
             const parts = [];
 
-            // העלאת תמונה ראשית
+            // תמונה ראשית - מסומנת בבירור כדמות המרכזית
             const mainBase64 = await fileToBase64(mainImageFile);
-            parts.push({ text: 'Main central character photo (Person 1):' });
+            parts.push({ text: "Main character (Person 1), keep this as the central figure. Use this exact photo as the true reference for this person's real face and identity:" });
             parts.push({
                 inline_data: {
                     mime_type: mainImageFile.type,
@@ -267,11 +293,11 @@
                 }
             });
 
-            // העלאת תמונות נוספות
+            // כל תמונה נוספת מסומנת בנפרד כאדם שונה
             for (let i = 0; i < extraImageFiles.length; i++) {
                 const file = extraImageFiles[i];
                 const extraBase64 = await fileToBase64(file);
-                parts.push({ text: `Separate secondary character photo (Person ${i + 2}):` });
+                parts.push({ text: `Additional, separate person (Person ${i + 2}). Use this exact photo as the true reference for this person's real face and identity:` });
                 parts.push({
                     inline_data: {
                         mime_type: file.type,
@@ -280,55 +306,54 @@
                 });
             }
 
-            // הנחיית ניתוח ויזואלי מפורטת ל-Gemini
-            const promptInstruction = `Analyze all provided person photos carefully. Extract key distinctive facial traits (hair style/color, age, jawline, eye shape, nose shape, smile, facial hair if any). ` +
-                `Construct a highly detailed English image generation prompt to generate a new cohesive artwork containing all these persons rendered in style: "${style}", setting/scene: "${scene}". ` +
-                `Ensure the main person (Person 1) is clearly recognizable based on their facial features. ` +
-                (signText ? `Include a clear cardboard sign held by Person 1 displaying the text: "${signText}". ` : '') +
-                `Output ONLY the raw detailed English prompt string, with no markdown or extra intro text.`;
+            // הנחיה ליצירת תמונה אחת מאוחדת, שממזגת את הפנים האמיתיות לתוך הסצנה - לא הדבקה, אלא רינדור אמיתי
+            const instruction = `Using the real people shown in the reference photos above, generate ONE new single image that shows them together, ` +
+                `rendered in style: "${style}", placed in scene: "${scene}". ` +
+                `Preserve each person's real facial identity, proportions and distinguishing features as closely as possible, fully blended and consistent with the chosen art style and lighting of the scene - not pasted as a separate photo, not a collage, and with no visible seams or rectangular photo edges. ` +
+                `The main character (Person 1) must be facing forward, centered in the frame, with the face clearly and fully visible. ` +
+                (signText ? `Include a clear cardboard sign held by the main character with text: "${signText}". ` : '') +
+                `Return only the final generated image.`;
 
-            parts.push({ text: promptInstruction });
+            parts.push({ text: instruction });
 
-            setStatus('מנתח תווי פנים מול Google Gemini...');
-            let geminiData = await callGeminiApi(apiKey, 'gemini-2.0-flash', parts);
+            // ניסיון מול מודלים ליצירת תמונות, מהחדש לישן, עד שאחד מהם מצליח
+            let imagePart = null;
+            let lastError = null;
 
-            if (geminiData.error) {
-                console.warn('gemini-2.0-flash failed, trying gemini-1.5-flash...', geminiData.error);
-                setStatus('מנסה מודל גיבוי...');
-                geminiData = await callGeminiApi(apiKey, 'gemini-1.5-flash', parts);
+            for (const modelName of IMAGE_MODELS) {
+                setStatus(`מייצר תמונה (${modelName})...`);
+                let geminiData;
+                try {
+                    geminiData = await callGeminiApi(apiKey, modelName, parts);
+                } catch (networkErr) {
+                    lastError = networkErr;
+                    continue;
+                }
+
+                if (geminiData.error) {
+                    console.warn(`${modelName} failed:`, geminiData.error);
+                    lastError = new Error(`שגיאת גוגל (${geminiData.error.code}): ${geminiData.error.message}`);
+                    continue;
+                }
+
+                imagePart = extractImagePart(geminiData);
+                if (imagePart) break;
+
+                lastError = new Error('המודל החזיר תשובה בלי תמונה.');
             }
 
-            if (geminiData.error) {
-                throw new Error(`שגיאת גוגל (${geminiData.error.code}): ${geminiData.error.message}`);
+            if (!imagePart) {
+                throw lastError || new Error('לא הצלחנו לייצר תמונה. ודא שמפתח ה-API שלך תומך ביצירת תמונות (Nano Banana).');
             }
 
-            const detailedPrompt = geminiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+            const imageUrl = `data:${imagePart.mimeType};base64,${imagePart.data}`;
+            resultImage.src = imageUrl;
+            downloadBtn.href = imageUrl;
 
-            if (!detailedPrompt) {
-                throw new Error('התקבלה תשובה ריקה מגוגל.');
-            }
-
-            // הפקת התמונה המעובדת והמאוחדת משרתי ה-AI
-            setStatus('מפיק את התמונה המעובדת...');
-            const seed = Math.floor(Math.random() * 1000000);
-            const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(detailedPrompt)}?width=1024&height=1024&seed=${seed}&nologo=true&model=flux`;
-
-            const img = new Image();
-            img.onload = function() {
-                resultImage.src = imageUrl;
-                downloadBtn.href = imageUrl;
-                setStatus('');
-                loader.style.display = 'none';
-                resultContainer.style.display = 'block';
-                generateBtn.disabled = false;
-            };
-            img.onerror = function() {
-                alert('אירעה שגיאה בטעינת התמונה, נסה שוב.');
-                setStatus('');
-                loader.style.display = 'none';
-                generateBtn.disabled = false;
-            };
-            img.src = imageUrl;
+            setStatus('');
+            loader.style.display = 'none';
+            resultContainer.style.display = 'block';
+            generateBtn.disabled = false;
 
         } catch (err) {
             console.error(err);
