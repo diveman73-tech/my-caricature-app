@@ -195,8 +195,8 @@
         });
     }
 
-    async function callGeminiApi(apiKey, modelName, mainImageFile, mainImageBase64, style, scene, signText) {
-        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+    async function callGeminiApi(apiKey, modelName, apiVersion, mainImageFile, mainImageBase64, style, scene, signText) {
+        const geminiUrl = `https://generativelanguage.googleapis.com/${apiVersion}/models/${modelName}:generateContent?key=${apiKey}`;
         
         const response = await fetch(geminiUrl, {
             method: 'POST',
@@ -244,12 +244,17 @@
             const mainImageBase64 = await fileToBase64(mainImageFile);
             const seed = Math.floor(Math.random() * 1000000);
             
-            // ניסיון ראשון עם gemini-2.0-flash, ואז נפילה ל-gemini-1.5-flash
-            let geminiData = await callGeminiApi(apiKey, 'gemini-2.0-flash', mainImageFile, mainImageBase64, style, scene, signText);
+            // ניסיונות מול גרסאות ה-API המעודכנות של גוגל (v1)
+            let geminiData = await callGeminiApi(apiKey, 'gemini-2.5-flash', 'v1', mainImageFile, mainImageBase64, style, scene, signText);
             
             if (geminiData.error) {
-                console.warn('Gemini 2.0 Flash failed, trying Gemini 1.5 Flash...', geminiData.error);
-                geminiData = await callGeminiApi(apiKey, 'gemini-1.5-flash', mainImageFile, mainImageBase64, style, scene, signText);
+                console.warn('v1 gemini-2.5-flash failed, trying gemini-1.5-flash...', geminiData.error);
+                geminiData = await callGeminiApi(apiKey, 'gemini-1.5-flash', 'v1', mainImageFile, mainImageBase64, style, scene, signText);
+            }
+
+            if (geminiData.error) {
+                console.warn('v1 gemini-1.5-flash failed, trying v1beta gemini-2.5-flash...', geminiData.error);
+                geminiData = await callGeminiApi(apiKey, 'gemini-2.5-flash', 'v1beta', mainImageFile, mainImageBase64, style, scene, signText);
             }
 
             if (geminiData.error) {
