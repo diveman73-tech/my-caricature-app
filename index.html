@@ -195,7 +195,7 @@
 
     <div id="result-container">
         <h2>התמונה שלך מוכנה!</h2>
-        <img id="result-image" src="" alt="תמונה סופית">
+        <img id="result-image" src="" alt="תוצאה סופית">
         <br><br>
         <a id="download-btn" class="btn" style="display:inline-block; text-decoration:none; width:auto; padding:10px 20px;" download="caricature.jpg" target="_blank">הורד תמונה</a>
     </div>
@@ -211,8 +211,8 @@
         });
     }
 
-    async function callGeminiApi(apiKey, modelName, apiVersion, parts) {
-        const geminiUrl = `https://generativelanguage.googleapis.com/${apiVersion}/models/${modelName}:generateContent`;
+    async function callGeminiApi(apiKey, modelName, parts) {
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`;
 
         const response = await fetch(geminiUrl, {
             method: 'POST',
@@ -282,7 +282,7 @@
 
             // הנחיית ניתוח ויזואלי מפורטת ל-Gemini
             const promptInstruction = `Analyze all provided person photos carefully. Extract key distinctive facial traits (hair style/color, age, jawline, eye shape, nose shape, smile, facial hair if any). ` +
-                `Construct a highly detailed English image generation prompt to generate a new cohesive single artwork containing all these persons rendered in style: "${style}", setting/scene: "${scene}". ` +
+                `Construct a highly detailed English image generation prompt to generate a new cohesive artwork containing all these persons rendered in style: "${style}", setting/scene: "${scene}". ` +
                 `Ensure the main person (Person 1) is clearly recognizable based on their facial features. ` +
                 (signText ? `Include a clear cardboard sign held by Person 1 displaying the text: "${signText}". ` : '') +
                 `Output ONLY the raw detailed English prompt string, with no markdown or extra intro text.`;
@@ -290,12 +290,12 @@
             parts.push({ text: promptInstruction });
 
             setStatus('מנתח תווי פנים מול Google Gemini...');
-            let geminiData = await callGeminiApi(apiKey, 'gemini-3.6-flash', 'v1', parts);
+            let geminiData = await callGeminiApi(apiKey, 'gemini-2.0-flash', parts);
 
             if (geminiData.error) {
-                console.warn('gemini-3.6-flash failed, trying gemini-1.5-flash...', geminiData.error);
+                console.warn('gemini-2.0-flash failed, trying gemini-1.5-flash...', geminiData.error);
                 setStatus('מנסה מודל גיבוי...');
-                geminiData = await callGeminiApi(apiKey, 'gemini-1.5-flash', 'v1', parts);
+                geminiData = await callGeminiApi(apiKey, 'gemini-1.5-flash', parts);
             }
 
             if (geminiData.error) {
