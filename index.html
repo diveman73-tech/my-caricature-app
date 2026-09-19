@@ -195,6 +195,32 @@
         });
     }
 
+    async function callGeminiApi(apiKey, modelName, mainImageFile, mainImageBase64, style, scene, signText) {
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+        
+        const response = await fetch(geminiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{
+                    parts: [
+                        {
+                            inline_data: {
+                                mime_type: mainImageFile.type,
+                                data: mainImageBase64
+                            }
+                        },
+                        {
+                            text: `Analyze the face in this image. Create a highly detailed image generation prompt in English to recreate a person with these exact facial features in style: "${style}" and scene: "${scene}". ${signText ? 'Holding a sign with text: "' + signText + '"' : ''}. Output ONLY the concise prompt.`
+                        }
+                    ]
+                }]
+            })
+        });
+
+        return await response.json();
+    }
+
     document.getElementById('caricature-form').addEventListener('submit', async function(e) {
         e.preventDefault();
 
@@ -206,8 +232,6 @@
         const downloadBtn = document.getElementById('download-btn');
 
         const mainImageFile = document.getElementById('main-image').files[0];
-        const extraImageFiles = Array.from(document.getElementById('extra-images').files);
-
         const style = document.getElementById('style-select').value;
         const scene = document.getElementById('scene-select').value;
         const signText = document.getElementById('sign-text').value.trim();
@@ -220,30 +244,13 @@
             const mainImageBase64 = await fileToBase64(mainImageFile);
             const seed = Math.floor(Math.random() * 1000000);
             
-            // תיקון שם המודל ל-gemini-1.5-flash
-            const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-
-            const geminiResponse = await fetch(geminiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{
-                        parts: [
-                            {
-                                inline_data: {
-                                    mime_type: mainImageFile.type,
-                                    data: mainImageBase64
-                                }
-                            },
-                            {
-                                text: `Analyze the face in this image. Create a highly detailed image generation prompt in English to recreate a person with these exact facial features in style: "${style}" and scene: "${scene}". ${signText ? 'Holding a sign with text: "' + signText + '"' : ''}. Output ONLY the concise prompt.`
-                            }
-                        ]
-                    }]
-                })
-            });
-
-            const geminiData = await geminiResponse.json();
+            // ניסיון ראשון עם gemini-2.0-flash, ואז נפילה ל-gemini-1.5-flash
+            let geminiData = await callGeminiApi(apiKey, 'gemini-2.0-flash', mainImageFile, mainImageBase64, style, scene, signText);
+            
+            if (geminiData.error) {
+                console.warn('Gemini 2.0 Flash failed, trying Gemini 1.5 Flash...', geminiData.error);
+                geminiData = await callGeminiApi(apiKey, 'gemini-1.5-flash', mainImageFile, mainImageBase64, style, scene, signText);
+            }
 
             if (geminiData.error) {
                 throw new Error(`שגיאת גוגל (${geminiData.error.code}): ${geminiData.error.message}`);
