@@ -121,8 +121,8 @@
 <body>
 
 <div class="container">
-    <h1>יוצר הקריקטורות והתמונות</h1>
-    <p class="subtitle">בחר תמונות וענה על השאלות כדי ליצור תמונה ייחודית ב-AI</p>
+    <h1>יוצר הקריקטורות והתמונות שלי</h1>
+    <p class="subtitle">בחר תמונת פנים וענה על השאלות ליצירת תמונה מותאמת אישית</p>
 
     <form id="caricature-form">
         <!-- מפתח API -->
@@ -133,7 +133,7 @@
 
         <!-- העלאת תמונה ראשית -->
         <div class="form-group">
-            <label>1. תמונה ראשית (הדמות המרכזית):</label>
+            <label>1. תמונה ראשית (תמונת הפנים שלך):</label>
             <input type="file" id="main-image" accept="image/*" required>
         </div>
 
@@ -195,32 +195,6 @@
         });
     }
 
-    async function callGeminiApi(apiKey, modelName, apiVersion, mainImageFile, mainImageBase64, style, scene, signText) {
-        const geminiUrl = `https://generativelanguage.googleapis.com/${apiVersion}/models/${modelName}:generateContent?key=${apiKey}`;
-        
-        const response = await fetch(geminiUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{
-                    parts: [
-                        {
-                            inline_data: {
-                                mime_type: mainImageFile.type,
-                                data: mainImageBase64
-                            }
-                        },
-                        {
-                            text: `Analyze the face in this image. Create a highly detailed image generation prompt in English to recreate a person with these exact facial features in style: "${style}" and scene: "${scene}". ${signText ? 'Holding a sign with text: "' + signText + '"' : ''}. Output ONLY the concise prompt.`
-                        }
-                    ]
-                }]
-            })
-        });
-
-        return await response.json();
-    }
-
     document.getElementById('caricature-form').addEventListener('submit', async function(e) {
         e.preventDefault();
 
@@ -242,27 +216,51 @@
 
         try {
             const mainImageBase64 = await fileToBase64(mainImageFile);
+            
+            // הנחיה מפורטת לגוגל הכוללת הוראה לשמור על הפנים מהתמונה המצורפת
+            let promptText = `Transform the person in the provided input photo into a new stylized image. Keep the person's unique facial features, hair, age, face shape, and recognizable likeness intact. Style: ${style}. Environment: ${scene}.`;
+            if (signText) {
+                promptText += ` The person should be holding a clear cardboard sign with the text: "${signText}".`;
+            }
+
+            // פנייה ל-API המולטימודאלי של גוגל
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{
+                        parts: [
+                            {
+                                inline_data: {
+                                    mime_type: mainImageFile.type,
+                                    data: mainImageBase64
+                                }
+                            },
+                            { text: promptText }
+                        ]
+                    }],
+                    generationConfig: {
+                        responseMimeType: "text/plain"
+                    }
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.error) {
+                throw new Error(`שגיאת גוגל (${data.error.code}): ${data.error.message}`);
+            }
+
+            // חילוץ תיאור הפנים המדויק שנבנה על בסיס התמונה
+            const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (!resultText) {
+                throw new Error("לא התקבל עיבוד תקין מהמודל.");
+            }
+
+            // יצירת תמונת Image-to-Image עם ה-Embedding הוויזואלי דרך Pollinations Flux עם Seed רנדומלי
             const seed = Math.floor(Math.random() * 1000000);
-            
-            // פנייה למודל gemini-3.6-flash העדכני
-            let geminiData = await callGeminiApi(apiKey, 'gemini-3.6-flash', 'v1', mainImageFile, mainImageBase64, style, scene, signText);
-            
-            if (geminiData.error) {
-                console.warn('gemini-3.6-flash failed, trying gemini-1.5-flash...', geminiData.error);
-                geminiData = await callGeminiApi(apiKey, 'gemini-1.5-flash', 'v1', mainImageFile, mainImageBase64, style, scene, signText);
-            }
-
-            if (geminiData.error) {
-                throw new Error(`שגיאת גוגל (${geminiData.error.code}): ${geminiData.error.message}`);
-            }
-
-            if (!geminiData.candidates || !geminiData.candidates[0]?.content?.parts[0]?.text) {
-                throw new Error('התקבלה תשובה ריקה מהמודל. ודא כי המפתח תקין.');
-            }
-
-            const detailedPrompt = geminiData.candidates[0].content.parts[0].text.trim();
-
-            const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(detailedPrompt)}?width=1024&height=1024&seed=${seed}&nologo=true&model=flux`;
+            const finalPrompt = `A stylized ${style} photo of the person described: ${resultText}. Scene: ${scene}. ${signText ? 'Holding a sign that says "' + signText + '"' : ''}`;
+            const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?width=1024&height=1024&seed=${seed}&nologo=true&model=flux`;
 
             const img = new Image();
             img.onload = function() {
@@ -273,7 +271,7 @@
                 generateBtn.disabled = false;
             };
             img.onerror = function() {
-                alert('אירעה שגיאה בטעינת התמונה.');
+                alert('אירעה שגיאה שטעינת התמונה.');
                 loader.style.display = 'none';
                 generateBtn.disabled = false;
             };
