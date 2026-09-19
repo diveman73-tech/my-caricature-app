@@ -244,17 +244,12 @@
             const mainImageBase64 = await fileToBase64(mainImageFile);
             const seed = Math.floor(Math.random() * 1000000);
             
-            // ניסיונות מול גרסאות ה-API המעודכנות של גוגל (v1)
-            let geminiData = await callGeminiApi(apiKey, 'gemini-2.5-flash', 'v1', mainImageFile, mainImageBase64, style, scene, signText);
+            // פנייה למודל gemini-3.6-flash העדכני
+            let geminiData = await callGeminiApi(apiKey, 'gemini-3.6-flash', 'v1', mainImageFile, mainImageBase64, style, scene, signText);
             
             if (geminiData.error) {
-                console.warn('v1 gemini-2.5-flash failed, trying gemini-1.5-flash...', geminiData.error);
+                console.warn('gemini-3.6-flash failed, trying gemini-1.5-flash...', geminiData.error);
                 geminiData = await callGeminiApi(apiKey, 'gemini-1.5-flash', 'v1', mainImageFile, mainImageBase64, style, scene, signText);
-            }
-
-            if (geminiData.error) {
-                console.warn('v1 gemini-1.5-flash failed, trying v1beta gemini-2.5-flash...', geminiData.error);
-                geminiData = await callGeminiApi(apiKey, 'gemini-2.5-flash', 'v1beta', mainImageFile, mainImageBase64, style, scene, signText);
             }
 
             if (geminiData.error) {
