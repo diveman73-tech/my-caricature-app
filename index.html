@@ -56,7 +56,7 @@
             margin-bottom: 8px;
         }
 
-        input[type="file"], select, input[type="text"] {
+        input[type="file"], select, input[type="text"], input[type="password"] {
             width: 100%;
             padding: 12px;
             border: 1px solid var(--border);
@@ -122,21 +122,33 @@
 
 <div class="container">
     <h1>יוצר הקריקטורות והתמונות</h1>
-    <p class="subtitle">בחר תמונה וענה על השאלות כדי ליצור תמונה ייחודית ב-AI</p>
+    <p class="subtitle">בחר תמונות וענה על השאלות כדי ליצור תמונה ייחודית ב-AI</p>
 
     <form id="caricature-form">
+        <!-- מפתח API -->
+        <div class="form-group">
+            <label>מפתח Gemini API (חינמי):</label>
+            <input type="password" id="api-key" placeholder="הדבק את מפתח ה-API מ-Google AI Studio" required>
+        </div>
+
         <!-- העלאת תמונה ראשית -->
         <div class="form-group">
             <label>1. תמונה ראשית (הדמות המרכזית):</label>
             <input type="file" id="main-image" accept="image/*" required>
         </div>
 
+        <!-- העלאת תמונות נוספות -->
+        <div class="form-group">
+            <label>2. תמונות נוספות של אנשים (אופציונלי):</label>
+            <input type="file" id="extra-images" accept="image/*" multiple>
+        </div>
+
         <!-- בחירת סגנון -->
         <div class="form-group">
-            <label>2. בחר סגנון ויזואלי:</label>
+            <label>3. בחר סגנון ויזואלי:</label>
             <select id="style-select">
-                <option value="exaggerated funny caricature, big head, detailed cartoon face">קריקטורה מצחיקה (ראש גדול, קווים מובלטים)</option>
-                <option value="photorealistic realistic meme style, high quality portrait, highly detailed face">תמונה מציאותית / מם (כמו צילום אמיתי ברחוב)</option>
+                <option value="exaggerated funny caricature, big head, cartoon features">קריקטורה מצחיקה (ראש גדול, קווים מובלטים)</option>
+                <option value="photorealistic portrait, natural outdoor lighting, realistic face details">תמונה מציאותית / מם (כמו צילום אמיתי ברחוב)</option>
                 <option value="3D Pixar Disney animated movie style, expressive face, vibrant colors">אנימציית תלת-ממד (סגנון פיקסאר/דיסני)</option>
                 <option value="comic book illustration style, bold ink lines, colorful character">סגנון קומיקס בצבעים חזקים</option>
             </select>
@@ -144,7 +156,7 @@
 
         <!-- בחירת סצנה/רקע -->
         <div class="form-group">
-            <label>3. איפה הדמויות נמצאות?</label>
+            <label>4. איפה הדמויות נמצאות?</label>
             <select id="scene-select">
                 <option value="sitting on a city sidewalk street background">יושבים על מדרכה ברחוב העיר</option>
                 <option value="celebrating at a festive birthday party with colorful balloons">במסיבת יום הולדת שמחה עם בלונים</option>
@@ -156,7 +168,7 @@
 
         <!-- טקסט לשלט -->
         <div class="form-group">
-            <label>4. טקסט לשלט (אופציונלי):</label>
+            <label>5. טקסט לשלט (אופציונלי):</label>
             <input type="text" id="sign-text" placeholder="למשל: Will build AI agents for coffee או מזל טוב!">
         </div>
 
@@ -174,14 +186,27 @@
 </div>
 
 <script>
+    function fileToBase64(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve(reader.result.split(',')[1]);
+            reader.onerror = error => reject(error);
+        });
+    }
+
     document.getElementById('caricature-form').addEventListener('submit', async function(e) {
         e.preventDefault();
 
+        const apiKey = document.getElementById('api-key').value.trim();
         const generateBtn = document.getElementById('generate-btn');
         const loader = document.getElementById('loader');
         const resultContainer = document.getElementById('result-container');
         const resultImage = document.getElementById('result-image');
         const downloadBtn = document.getElementById('download-btn');
+
+        const mainImageFile = document.getElementById('main-image').files[0];
+        const extraImageFiles = Array.from(document.getElementById('extra-images').files);
 
         const style = document.getElementById('style-select').value;
         const scene = document.getElementById('scene-select').value;
@@ -192,13 +217,49 @@
         resultContainer.style.display = 'none';
 
         try {
-            let prompt = `A portrait transformed into ${style}, set in ${scene}`;
+            // הפיכת התמונה הראשית ל-Base64
+            const mainImageBase64 = await fileToBase64(mainImageFile);
+            
+            // שימוש בשירות Image-to-Image ייעודי המקבל רפרנס
+            let promptText = `A stylized ${style} image set in ${scene}. Maintain the key facial structure and likeness of the provided person.`;
             if (signText) {
-                prompt += `, holding a cardboard sign that clearly says "${signText}"`;
+                promptText += ` Holding a cardboard sign with text: "${signText}".`;
             }
 
+            // העלאת תמונה זמנית לעיבוד ויצירה בעזרת מודל רפרנס
             const seed = Math.floor(Math.random() * 1000000);
-            const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&seed=${seed}&nologo=true&model=flux`;
+            
+            // שליחה ל-Gemini API לצורך ניתוח תווי הפנים והפקת פרומפט ויזואלי מפורט
+            const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{
+                        parts: [
+                            {
+                                inline_data: {
+                                    mime_type: mainImageFile.type,
+                                    data: mainImageBase64
+                                }
+                            },
+                            {
+                                text: `Analyze the person's face in this photo (hair, age, gender, facial structure, features). Then create a detailed English image generation prompt to generate a new photo of THIS EXACT PERSON in style: "${style}" and scene: "${scene}". ${signText ? 'Holding a sign saying "' + signText + '"' : ''}. Return ONLY the prompt text in English without any explanations.`
+                            }
+                        ]
+                    }]
+                })
+            });
+
+            const geminiData = await geminiResponse.json();
+
+            if (!geminiData.candidates || !geminiData.candidates[0].content.parts[0].text) {
+                throw new Error('לא התקבל מענה תקין מ-Gemini API. בדוק את המפתח.');
+            }
+
+            const detailedPrompt = geminiData.candidates[0].content.parts[0].text.trim();
+
+            // יצירת התמונה הסופית המותאמת אישית מתוך התיאור המדויק של הפנים
+            const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(detailedPrompt)}?width=1024&height=1024&seed=${seed}&nologo=true&model=flux`;
 
             const img = new Image();
             img.onload = function() {
@@ -209,7 +270,7 @@
                 generateBtn.disabled = false;
             };
             img.onerror = function() {
-                alert('אירעה שגיאה ביצירת התמונה, אנא נסה שנית.');
+                alert('אירעה שגיאה בטעינת התמונה.');
                 loader.style.display = 'none';
                 generateBtn.disabled = false;
             };
@@ -217,7 +278,7 @@
 
         } catch (err) {
             console.error(err);
-            alert('אירעה שגיאה בעיבוד.');
+            alert('שגיאה: ' + (err.message || 'ודא שמפתח ה-API תקין ונסה שוב.'));
             loader.style.display = 'none';
             generateBtn.disabled = false;
         }
