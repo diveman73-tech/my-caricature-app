@@ -175,7 +175,7 @@
         <h2>התמונה שלך מוכנה!</h2>
         <img id="result-image" src="" alt="תוצאה">
         <br><br>
-        <a id="download-btn" class="btn" style="display:inline-block; text-decoration:none; width:auto; padding:10px 20px;" download="my-image.jpg">הורד תמונה</a>
+        <a id="download-btn" class="btn" style="display:inline-block; text-decoration:none; width:auto; padding:10px 20px;" download="my-image.jpg" target="_blank">הורד תמונה</a>
     </div>
 </div>
 
@@ -205,7 +205,7 @@
         loader.style.display = 'block';
         resultContainer.style.display = 'none';
 
-        // יצירת URL דרך Pollinations AI (חינמי לגמרי)
+        // יצירת URL דרך Pollinations AI
         const seed = Math.floor(Math.random() * 1000000);
         const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&seed=${seed}&nologo=true`;
 
